@@ -34,19 +34,21 @@ func (p *Plugin) Run() {
 		return
 	}
 	create := p.CfgBoolOr("create", false)
+	follow := p.CfgBoolOr("follow", true)
 	if _, err := os.Stat(fPath); os.IsNotExist(err) && create {
 		log.Printf("[DD] Create file: %s", fPath)
 		f, _ := os.Create(fPath)
 		f.Close()
 	}
 	fileReopen := p.CfgBoolOr("reopen", true)
-	t, err := tail.TailFile(fPath, tail.Config{Follow: true, ReOpen: fileReopen})
+	t, err := tail.TailFile(fPath, tail.Config{Follow: follow, ReOpen: fileReopen})
 	if err != nil {
 		log.Printf("[WW] File collector failed to open %s: %s", fPath, err)
 	}
-	b := qtypes_messages.NewBase(p.Name)
+
 	for line := range t.Lines {
 		p.Log("trace", line.Text)
+		b := qtypes_messages.NewBase(p.Name)
 		qm := qtypes_messages.NewMessage(b, line.Text)
 		p.QChan.SendData(qm)
 	}

@@ -38,8 +38,10 @@ func New(qChan qtypes_qchannel.QChan, cfg *config.Config, name string) (Plugin, 
 	p.proto = p.CfgStringOr("proto", "udp")
 	p.defTag = p.CfgStringOr("default-tag", "")
 	p.defSeverity = p.CfgStringOr("default-severity", "")
+	p.logWriter = map[string]*syslog.Writer{}
 	return p, nil
 }
+
 func (p *Plugin) GetWriter(kv map[string]string) (w *syslog.Writer, err error) {
 	// <tag>
 	tag, fOk := kv["tag"]
@@ -52,44 +54,47 @@ func (p *Plugin) GetWriter(kv map[string]string) (w *syslog.Writer, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	w, ok := p.logWriter[key]
-	if ! ok {
+	if !ok {
 		w, err = syslog.Dial(p.proto,p.addr, syslog.LOG_INFO|syslog.LOG_LOCAL7, tag)
 		if err != nil {
 			return
 		}
 		p.Log("debug", fmt.Sprintf("Create new writer '%s'", key))
 		p.logWriter[key] = w
+		return w, nil
 	}
 	return
 }
 
 func (p *Plugin) LogLine(w *syslog.Writer, kv map[string]string, str string) (err error) {
 	severity, fOk := kv["severity"]
-	if p.defSeverity != "" {
-		severity = p.defSeverity
-	} else if !fOk {
+	if !fOk {
 		msg := fmt.Sprintf("severity are not found in map '%v'", kv)
 		p.Log("error", msg)
 		return fmt.Errorf(msg)
 	}
-
+	message, ok := kv["message"]
+	if ! ok {
+		message = str
+	}
 	switch severity {
 	case "error":
-		w.Err(str)
+		w.Err(message)
 	case "warn":
-		w.Warning(str)
+		w.Warning(message)
 	case "notice":
-		w.Notice(str)
+		w.Notice(message)
 	case "info":
-		w.Info(str)
+		w.Info(message)
 	case "debug":
-		w.Debug(str)
+		w.Debug(message)
 	default:
 		err = fmt.Errorf("unkonwn severity '%s' (allowd: error|warn|notice|info|debug)", severity)
 	}
-	p.Log("trace", fmt.Sprintf("Just logged %s", str))
+	p.Log("trace", fmt.Sprintf("logged [%s] %s", severity, message))
 	return
 }
+
 // Run fetches everything from the Data channel and flushes it to stdout
 func (p *Plugin) Run() {
 	p.Log("notice", fmt.Sprintf("Start %s %s-handler v%s", p.Name, p.Pkg, p.Version))
@@ -103,23 +108,10 @@ func (p *Plugin) Run() {
 				if qm.StopProcessing(p.Plugin, false) {
 					continue
 				}
-				p.Log("trace", fmt.Sprintf("Received message: %s", qm.Message))
-				p.Log("trace", fmt.Sprintf(">> %v", qm.ToJSON()))
-				var w *syslog.Writer
-				var err error
-				if p.defTag == "" {
-					w, err = p.GetWriter(qm.Tags)
-					if err != nil {
-						p.Log("error", err.Error())
-						continue
-					}
-				} else {
-					w, err = syslog.Dial(p.proto,p.addr, syslog.LOG_INFO|syslog.LOG_LOCAL7, p.defTag)
-					p.Log("debug", fmt.Sprintf("Created new writer w/ tag '%s'", p.defTag))
-					if err != nil {
-						p.Log("error", err.Error())
-						continue
-					}
+				w, err := p.GetWriter(qm.Tags)
+				if err != nil {
+					p.Log("error", err.Error())
+					continue
 				}
 				err = p.LogLine(w, qm.Tags, qm.Message)
 				if err != nil {

@@ -1,2 +1,3 @@
-Testline1
-Testline2
+app1 debug Testline1 with severity debug
+app1 info Testline2 with severity info
+app2 warn Testline3 with severity warn

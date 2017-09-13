@@ -8,6 +8,9 @@ import (
 	"github.com/qframe/types/qchannel"
 	"github.com/qframe/handler-syslog"
 	"github.com/qframe/types/messages"
+	"github.com/qframe/filter-grok"
+	"reflect"
+	"time"
 )
 
 func checkErr(pname string, err error) {
@@ -26,41 +29,36 @@ func main() {
 	}
 	fPath := os.Args[1]
 	cfgMap := map[string]string{
-		"log.level": "trace",
-		"log.only-plugins": "grok,syslog",
+		"log.level": "debug",
 		"collector.file.path": fPath,
 		"collector.file.reopen": "false",
 		"filter.grok.inputs": "file",
-		"filter.grok.pattern": "%{WORD:facility}|%{GREEDYDATA:message}",
-		"handler.syslog.inputs": "file",
-		"handler.syslog.default-severity": "info",
+		"filter.grok.pattern": "%{WORD:tag} %{WORD:severity} %{GREEDYDATA:message}",
+		"handler.syslog.inputs": "grok",
 		"handler.syslog.default-tag": "test",
 		"handler.syslog.addr": "tasks.rsyslog:514",
 	}
 	cfg := config.NewConfig([]config.Provider{config.NewStatic(cfgMap)})
-
-	p, _ := qcollector_file.New(qChan, cfg, "file")
-	go p.Run()
-	/*
+	// Syslog handler
+	phs, err := qhandler_syslog.New(qChan, cfg, "syslog")
+	checkErr(phs.Name, err)
+	go phs.Run()
 	// GROK
 	pfm, err := qfilter_grok.New(qChan, cfg, "grok")
 	checkErr(pfm.Name, err)
 	go pfm.Run()
-	*/
-	phs, err := qhandler_syslog.New(qChan, cfg, "syslog")
-	checkErr(phs.Name, err)
-	go phs.Run()
+	time.Sleep(time.Duration(500)*time.Millisecond)
+	p, _ := qcollector_file.New(qChan, cfg, "file")
+	go p.Run()
 	bg := p.QChan.Data.Join()
 	log.Println("Start receive loop...")
 	for {
 		val := <- bg.Read
 		switch val.(type) {
 		case qtypes_messages.Message:
-			qm := val.(qtypes_messages.Message)
-			if qm.GetLastSource() == "file" && qm.SourceSuccess {
-				continue
-				//log.Printf("%v | %s", qm.Tags, qm.Message)
-			}
+			continue
+		default:
+			log.Printf("Dunno time | %s", reflect.TypeOf(val))
 		}
 
 	}

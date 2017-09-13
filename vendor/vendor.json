@@ -15,6 +15,12 @@
 			"revisionTime": "2017-09-11T04:08:19Z"
 		},
 		{
+			"checksumSHA1": "AHhRdnSt25KL4h34UqsDRUXUpRo=",
+			"path": "github.com/deckarep/golang-set",
+			"revision": "b3af78e1d186c53529e3c916055d734665f68121",
+			"revisionTime": "2017-08-26T19:28:09Z"
+		},
+		{
 			"checksumSHA1": "P2SUyZzCzHMkb3tfts/32MzCM6A=",
 			"path": "github.com/docker/docker/api/types",
 			"revision": "84144a8c66c1bb2af8fa997288f51ef2719971b4",
@@ -171,10 +177,16 @@
 			"revisionTime": "2017-09-10T13:46:14Z"
 		},
 		{
-			"checksumSHA1": "K/xB8Y2yCWrS0aKN7ElqzxQk7x8=",
+			"checksumSHA1": "xhunGMFE9QirevJ+gli8Avxo36E=",
 			"path": "github.com/qframe/collector-file",
 			"revision": "015157b574820bbca3f1607a60ec3dcd90beef82",
 			"revisionTime": "2017-09-01T12:34:00Z"
+		},
+		{
+			"checksumSHA1": "GFc/67mWXLCv6TuSUYGHjBbOrpU=",
+			"path": "github.com/qframe/filter-grok",
+			"revision": "148abdb8d5314a6d6cf32aaeda0f36a11784d175",
+			"revisionTime": "2017-09-13T10:42:15Z"
 		},
 		{
 			"checksumSHA1": "ZokxRO/FavchTs9BrbmiCZNrzO4=",
@@ -211,6 +223,12 @@
 			"path": "github.com/qframe/types/ticker",
 			"revision": "243298f9a5781a5d7d70207c1fb3272011af839c",
 			"revisionTime": "2017-09-12T12:27:59Z"
+		},
+		{
+			"checksumSHA1": "dSJOKzpGvZzXOMOw2b5xQZuhhc0=",
+			"path": "github.com/vjeantet/grok",
+			"revision": "ce01e59abcf6fbc9833b7deb5e4b8ee1769bcc53",
+			"revisionTime": "2017-07-11T19:53:01Z"
 		},
 		{
 			"checksumSHA1": "m8hYD/alsufIYIM7sR06wbL+dKo=",
