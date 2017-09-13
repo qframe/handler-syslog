@@ -2,15 +2,15 @@ package qhandler_syslog
 
 import (
 	"fmt"
+	"log/syslog"
+	"sync"
 	"reflect"
-	"github.com/RackSec/srslog"
 	"github.com/zpatrick/go-config"
 
 	"github.com/qframe/types/qchannel"
 	"github.com/qframe/types/plugin"
 	"github.com/qframe/types/constants"
 	"github.com/qframe/types/messages"
-	"sync"
 )
 
 const (
@@ -22,7 +22,9 @@ const (
 type Plugin struct {
 	*qtypes_plugin.Plugin
 	mu 			sync.Mutex
-	logWriter 	map[string]*srslog.Writer
+	defTag string
+	defSeverity string
+	logWriter 	map[string]*syslog.Writer
 	addr,proto 	string
 }
 
@@ -34,31 +36,38 @@ func New(qChan qtypes_qchannel.QChan, cfg *config.Config, name string) (Plugin, 
 	p.Name = name
 	p.addr = p.CfgStringOr("addr", "127.0.0.1:514")
 	p.proto = p.CfgStringOr("proto", "udp")
+	p.defTag = p.CfgStringOr("default-tag", "")
+	p.defSeverity = p.CfgStringOr("default-severity", "")
 	return p, nil
 }
-func (p *Plugin) GetWriter(kv map[string]string) (w *srslog.Writer, err error) {
-	// <facility>
-	facility, fOk := kv["facility"]
+func (p *Plugin) GetWriter(kv map[string]string) (w *syslog.Writer, err error) {
+	// <tag>
+	tag, fOk := kv["tag"]
 	if !fOk {
-		msg := fmt.Sprintf("facility are not found in map '%v'", kv)
+		msg := fmt.Sprintf("tag are not found in map '%v'", kv)
 		p.Log("error", msg)
 		return w, fmt.Errorf(msg)
 	}
-	key := fmt.Sprintf("%s", facility)
+	key := fmt.Sprintf("%s", tag)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	w, ok := p.logWriter[key]
 	if ! ok {
-		w, err = srslog.Dial(p.proto,p.addr, srslog.LOG_INFO, facility)
+		w, err = syslog.Dial(p.proto,p.addr, syslog.LOG_INFO|syslog.LOG_LOCAL7, tag)
+		if err != nil {
+			return
+		}
 		p.Log("debug", fmt.Sprintf("Create new writer '%s'", key))
 		p.logWriter[key] = w
 	}
 	return
 }
 
-func (p *Plugin) LogLine(w *srslog.Writer, kv map[string]string, log string) (err error) {
+func (p *Plugin) LogLine(w *syslog.Writer, kv map[string]string, str string) (err error) {
 	severity, fOk := kv["severity"]
-	if !fOk {
+	if p.defSeverity != "" {
+		severity = p.defSeverity
+	} else if !fOk {
 		msg := fmt.Sprintf("severity are not found in map '%v'", kv)
 		p.Log("error", msg)
 		return fmt.Errorf(msg)
@@ -66,18 +75,19 @@ func (p *Plugin) LogLine(w *srslog.Writer, kv map[string]string, log string) (er
 
 	switch severity {
 	case "error":
-		w.Err(log)
+		w.Err(str)
 	case "warn":
-		w.Err(log)
+		w.Warning(str)
 	case "notice":
-		w.Err(log)
+		w.Notice(str)
 	case "info":
-		w.Err(log)
+		w.Info(str)
 	case "debug":
-		w.Err(log)
+		w.Debug(str)
 	default:
 		err = fmt.Errorf("unkonwn severity '%s' (allowd: error|warn|notice|info|debug)", severity)
 	}
+	p.Log("trace", fmt.Sprintf("Just logged %s", str))
 	return
 }
 // Run fetches everything from the Data channel and flushes it to stdout
@@ -93,12 +103,28 @@ func (p *Plugin) Run() {
 				if qm.StopProcessing(p.Plugin, false) {
 					continue
 				}
-				w, err := p.GetWriter(qm.Tags)
+				p.Log("trace", fmt.Sprintf("Received message: %s", qm.Message))
+				p.Log("trace", fmt.Sprintf(">> %v", qm.ToJSON()))
+				var w *syslog.Writer
+				var err error
+				if p.defTag == "" {
+					w, err = p.GetWriter(qm.Tags)
+					if err != nil {
+						p.Log("error", err.Error())
+						continue
+					}
+				} else {
+					w, err = syslog.Dial(p.proto,p.addr, syslog.LOG_INFO|syslog.LOG_LOCAL7, p.defTag)
+					p.Log("debug", fmt.Sprintf("Created new writer w/ tag '%s'", p.defTag))
+					if err != nil {
+						p.Log("error", err.Error())
+						continue
+					}
+				}
+				err = p.LogLine(w, qm.Tags, qm.Message)
 				if err != nil {
 					p.Log("error", err.Error())
-					continue
 				}
-				p.LogLine(w, qm.Tags, qm.Message)
 			default:
 				p.Log("info", fmt.Sprintf("Dunno type '%s': %v", reflect.TypeOf(val), val))
 			}
